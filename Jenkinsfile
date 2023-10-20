@@ -1,17 +1,40 @@
+def secrets = [
+    [
+        path: 'secrets/creds/my-secret-text',
+        engineVersion: 2,
+        secretValues: [
+            [envVar: 'SONARQUBE_TOKEN', vaultKey: 'recommandation']
+        ]
+    ]
+]
+
+def configuration = [
+    vaultUrl: 'http://65.0.30.51:8200',
+    vaultCredentialId: 'vault-geetha-token',
+    engineVersion: 2
+]
+
 pipeline {
-  agent any
-  options {
-    buildDiscarder(logRotator(numToKeepStr: '5'))
-  }
-  environment {
-    
-    DOCKERHUB_CREDENTIALS = credentials('dockerhub')
-  }
-  stages {
+    agent any
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '5'))
+    }
+    environment {
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub')
+    }
+    stages {
+        stage('Vault') {
+            steps {
+                script {
+                    withVault([configuration: configuration, vaultSecrets: secrets]) {
+                        // Extract the SonarQube Token
+                        SONARQUBE_TOKEN = env.SONARQUBE_TOKEN
+                        sh "echo \${SONARQUBE_TOKEN}"
+                    }
+                }
+            }
+        }
 
-
-
-    
   
           stage('Docker Bench Security') {
       steps {
@@ -25,8 +48,8 @@ pipeline {
           agent any
       steps {
        
-
-       sh '/var/opt/sonar-scanner-4.7.0.2747-linux/bin/sonar-scanner -Dsonar.projectKey=recommendationservice -Dsonar.sources=. -Dsonar.host.url=http://172.31.7.193:9000 -Dsonar.token=sqp_08f3aac8a963809f89bc559bb3cef46e31001dae'
+          withVault([configuration: configuration, vaultSecrets: secrets]) {
+       sh '/var/opt/sonar-scanner-4.7.0.2747-linux/bin/sonar-scanner -Dsonar.projectKey=recommendationservice -Dsonar.sources=. -Dsonar.host.url=http://172.31.7.193:9000 -Dsonar.token=$SONARQUBE_TOKEN'
 
         
       }
